@@ -8,6 +8,8 @@ namespace AppConfigMaintenance.DataAccess.Services
 {
     public class ConfigSettingService : IConfigSettingService
     {
+        private const int AcquireLockTimeoutInMilliseconds = 1000;
+
         private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
 
         private readonly IConfigSettingRepository _configSettingRepository;
@@ -22,7 +24,7 @@ namespace AppConfigMaintenance.DataAccess.Services
 
         public async Task<int> AddConfigSettingAsync(ConfigSettingModel configSetting, int? optionalDelay = null)
         {
-            var acquiredLock = await _semaphoreSlim.WaitAsync(1000);
+            var acquiredLock = await _semaphoreSlim.WaitAsync(AcquireLockTimeoutInMilliseconds);
 
             if (!acquiredLock)
             {
@@ -46,7 +48,12 @@ namespace AppConfigMaintenance.DataAccess.Services
 
         public async Task<int> UpdateConfigSettingByNameAsync(string name, string value, int? optionalDelay = null)
         {
-            await _semaphoreSlim.WaitAsync();
+            var acquiredLock = await _semaphoreSlim.WaitAsync(AcquireLockTimeoutInMilliseconds);
+
+            if (!acquiredLock)
+            {
+                throw new TimeoutException("Another caller is already updating this setting.");
+            }
 
             try
             {
